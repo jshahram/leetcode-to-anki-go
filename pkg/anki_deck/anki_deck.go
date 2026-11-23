@@ -208,6 +208,53 @@ div > div {
     background-color: #2d2d2d !important;
     color: #e0e0e0 !important;
 }
+
+/* LeetCode-like problem statement layout. Keep examples compact and aligned. */
+.title-container {
+    background: transparent !important;
+    padding: 0 0 12px;
+    margin: 0 0 18px;
+    border-radius: 0;
+    box-shadow: none !important;
+    border-bottom: 1px solid #3e3e3e;
+}
+h1 {
+    text-align: left;
+    color: #eff1f6;
+    font-size: 24px;
+    text-shadow: none;
+    border: 0;
+    padding: 0;
+    margin: 0;
+}
+.night_mode h1 { color: #eff1f6; }
+.description { text-align: left; line-height: 1.55; }
+.description-line { margin: 12px 0; }
+.example {
+    background: #282828 !important;
+    border: 1px solid #3e3e3e !important;
+    border-radius: 8px;
+    padding: 16px;
+    margin: 18px 0;
+}
+.example-title {
+    color: #eff1f6 !important;
+    font-size: 16px;
+    margin: 0 0 10px;
+}
+.example-content { margin: 0; }
+.example-line {
+    background: #353535 !important;
+    color: #eff1f6 !important;
+    border: 0 !important;
+    border-radius: 6px;
+    padding: 12px 14px;
+    margin: 8px 0 !important;
+    white-space: pre-wrap;
+    font-size: 14px;
+}
+.night_mode .example { background: #282828 !important; border-color: #3e3e3e !important; }
+.night_mode .example-line { background: #353535 !important; color: #eff1f6 !important; }
 </style>
 <div class="title-container">
   <h1>%s</h1>

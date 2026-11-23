@@ -38,230 +38,46 @@ type Problem struct {
 
 // FormatDescription formats the problem description for Anki cards
 func FormatDescription(description string, images []*Image) string {
-	// Split the description into lines
-	lines := strings.Split(description, "\n")
-	var result []string
-	var currentExample []string
-	var inExample bool
-	var inConstraints bool
-	var followUpParts []string
-	var inCSS bool
-	var currentText string
-
-	// Create a map of image filenames for quick lookup
-	imageMap := make(map[string]bool)
-	for _, img := range images {
-		imageMap[img.Filename] = true
-	}
-
-	// Add the CSS styling at the beginning
-	result = append(result, `<style>
-.description-line {
-    margin: 10px 0;
-    line-height: 1.5;
-    font-size: 16px;
-}
-.example {
-    margin: 20px 0;
-    padding: 15px;
-    background-color: #333;
-    border-radius: 8px;
-}
-.example-title {
-    color: #ff9800;
-    font-weight: bold;
-    font-size: 18px;
-    margin-bottom: 10px;
-}
-.example-line {
-    margin: 5px 0;
-    font-family: 'Courier New', monospace;
+	// Keep the original problem HTML intact. LeetCode uses inline <code> in
+	// examples and <pre><code> for longer samples; flattening to text loses both.
+	_ = images // image src values are already rewritten by extractImages.
+	return `<style>
+.leetcode-description { text-align: left; line-height: 1.55; }
+.leetcode-description p { margin: 10px 0; }
+.leetcode-description code {
+    font-family: 'Courier New', monospace !important;
     white-space: pre-wrap;
-}
-.example-content {
-    margin: 10px 0;
-    padding: 10px;
-    background-color: #2d2d2d;
+    overflow-wrap: anywhere;
+    background: #353535 !important;
+    color: #eff1f6 !important;
+    border: 0 !important;
     border-radius: 4px;
+    padding: 2px 5px !important;
 }
-.follow-up {
-    margin: 20px 0;
-    padding: 15px;
-    background-color: #333;
+.leetcode-description pre {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    white-space: pre !important;
+    tab-size: 4;
+    background: #282828 !important;
+    color: #eff1f6 !important;
+    border: 1px solid #3e3e3e !important;
     border-radius: 8px;
+    padding: 14px !important;
+    font: 14px/1.5 'Courier New', monospace !important;
 }
-pre {
-    margin: 5px 0;
-    padding: 5px;
-    background-color: #2d2d2d;
-    border-radius: 4px;
+.leetcode-description pre code {
+    display: block;
+    background: transparent !important;
+    padding: 0 !important;
+    border: 0 !important;
+    white-space: inherit;
 }
+.night_mode .leetcode-description code { background: #353535 !important; color: #eff1f6 !important; }
+.night_mode .leetcode-description pre { background: #282828 !important; color: #eff1f6 !important; }
 </style>
-<div class="description">`)
-
-	// Process each line
-	for _, line := range lines {
-		// Skip empty lines
-		if strings.TrimSpace(line) == "" {
-			if currentText != "" {
-				result = append(result, fmt.Sprintf(`<div class="description-line">%s</div>`, currentText))
-				currentText = ""
-			}
-			continue
-		}
-
-		// Skip CSS content
-		if strings.Contains(line, "{") {
-			inCSS = true
-			continue
-		}
-		if inCSS {
-			if strings.Contains(line, "}") {
-				inCSS = false
-			}
-			continue
-		}
-
-		// Handle lines with <img> tags
-		if strings.Contains(line, "<img") {
-			if currentText != "" {
-				result = append(result, fmt.Sprintf(`<div class="description-line">%s</div>`, currentText))
-				currentText = ""
-			}
-			// Find all img tags in the line
-			imgTagRegex := regexp.MustCompile(`<img[^>]*>`)
-			line = imgTagRegex.ReplaceAllStringFunc(line, func(imgTag string) string {
-				// Extract src attribute
-				srcRegex := regexp.MustCompile(`src="([^"]*)"`)
-				matches := srcRegex.FindStringSubmatch(imgTag)
-				if len(matches) < 2 {
-					return imgTag
-				}
-
-				src := matches[1]
-				// If it's a base64 image or remote URL, find its corresponding filename
-				if strings.HasPrefix(src, "data:image/") || strings.HasPrefix(src, "http") {
-					for filename := range imageMap {
-						// Replace the entire src with just the filename
-						return strings.Replace(imgTag, matches[0], fmt.Sprintf(`src="%s"`, filename), 1)
-					}
-				}
-				return imgTag
-			})
-		}
-
-		// For other lines, remove HTML tags except img tags
-		// First, temporarily replace img tags with placeholders
-		imgTags := make([]string, 0)
-		line = regexp.MustCompile(`<img[^>]*>`).ReplaceAllStringFunc(line, func(match string) string {
-			imgTags = append(imgTags, match)
-			return fmt.Sprintf("__IMG_TAG_%d__", len(imgTags)-1)
-		})
-
-		// Remove all other HTML tags
-		line = regexp.MustCompile(`<[^>]*>`).ReplaceAllString(line, "")
-
-		// Restore img tags
-		for i, tag := range imgTags {
-			line = strings.ReplaceAll(line, fmt.Sprintf("__IMG_TAG_%d__", i), tag)
-		}
-
-		// Process HTML entities
-		line = strings.ReplaceAll(line, "&lt;", "<")
-		line = strings.ReplaceAll(line, "&gt;", ">")
-		line = strings.ReplaceAll(line, "&amp;", "&")
-
-		// Format the line based on its content
-		line = strings.TrimSpace(line)
-		if line != "" {
-			if strings.HasPrefix(line, "Example") {
-				if currentText != "" {
-					result = append(result, fmt.Sprintf(`<div class="description-line">%s</div>`, currentText))
-					currentText = ""
-				}
-				if inExample {
-					// Close the previous example properly
-					currentExample = append(currentExample, "</div></div>")
-					result = append(result, strings.Join(currentExample, "\n"))
-					currentExample = nil
-				}
-				currentExample = []string{fmt.Sprintf(`<div class="example"><div class="example-title">%s</div><div class="example-content">`, line)}
-				inExample = true
-			} else if strings.HasPrefix(line, "Input:") || strings.HasPrefix(line, "Output:") || strings.HasPrefix(line, "Explanation:") {
-				if currentText != "" {
-					result = append(result, fmt.Sprintf(`<div class="description-line">%s</div>`, currentText))
-					currentText = ""
-				}
-				if inExample {
-					currentExample = append(currentExample, fmt.Sprintf(`<pre class="example-line">%s</pre>`, line))
-				} else {
-					result = append(result, fmt.Sprintf(`<div class="description-line">%s</div>`, line))
-				}
-			} else if strings.HasPrefix(line, "Constraints:") {
-				if currentText != "" {
-					result = append(result, fmt.Sprintf(`<div class="description-line">%s</div>`, currentText))
-					currentText = ""
-				}
-				if inExample {
-					currentExample = append(currentExample, "</div></div>")
-					result = append(result, strings.Join(currentExample, "\n"))
-					currentExample = nil
-					inExample = false
-				}
-				inConstraints = true
-			} else if strings.HasPrefix(line, "Follow") || strings.Contains(strings.ToLower(line), "o(n)") || strings.Contains(strings.ToLower(line), "solution") || strings.Contains(strings.ToLower(line), "complexity") {
-				if currentText != "" {
-					result = append(result, fmt.Sprintf(`<div class="description-line">%s</div>`, currentText))
-					currentText = ""
-				}
-				if inExample {
-					currentExample = append(currentExample, "</div></div>")
-					result = append(result, strings.Join(currentExample, "\n"))
-					currentExample = nil
-					inExample = false
-				}
-				inConstraints = false
-				line = html.UnescapeString(line)
-				followUpParts = append(followUpParts, line)
-			} else {
-				if inExample {
-					currentExample = append(currentExample, fmt.Sprintf(`<pre class="example-line">%s</pre>`, line))
-				} else if !inConstraints && !strings.HasPrefix(line, ".") {
-					if currentText == "" {
-						currentText = line
-					} else {
-						currentText = currentText + " " + line
-					}
-				}
-			}
-		}
-	}
-
-	// Add any remaining text
-	if currentText != "" {
-		result = append(result, fmt.Sprintf(`<div class="description-line">%s</div>`, currentText))
-	}
-
-	// Add any remaining example
-	if len(currentExample) > 0 {
-		if inExample {
-			currentExample = append(currentExample, "</div></div>")
-		}
-		result = append(result, strings.Join(currentExample, "\n"))
-	}
-
-	// Add follow-up if exists
-	if len(followUpParts) > 0 {
-		followUp := strings.Join(followUpParts, " ")
-		followUp = html.UnescapeString(followUp)
-		followUp = strings.TrimSpace(followUp)
-		result = append(result, fmt.Sprintf(`<div class="follow-up"><strong>Follow-up:</strong> %s</div>`, followUp))
-	}
-
-	// Close the description div
-	result = append(result, "</div>")
-
-	return strings.Join(result, "\n")
+<div class="description leetcode-description">` + description + `</div>`
 }
 
 func ExtractCodeFromHTML(htmlContent string) (string, error) {
@@ -554,49 +370,14 @@ func ParseDirectory(inputDir string, debug bool) ([]*Problem, error) {
 				return nil, fmt.Errorf("failed to extract images from %s: %v", file.Name(), err)
 			}
 
-			// Get the HTML content of the description
+			// Keep the original markup so inline and block code remain actual code
+			// elements in Anki. Remove only page controls and embedded styles/scripts.
+			descriptionDiv.Find("[data-example-lang-controls], script, style").Remove()
 			description, err := descriptionDiv.Html()
 			if err != nil {
 				return nil, fmt.Errorf("failed to get description HTML from %s: %v", file.Name(), err)
 			}
 
-			// Remove style tags and their content first
-			description = regexp.MustCompile(`<style[^>]*>[\s\S]*?</style>`).ReplaceAllString(description, "")
-
-			// Remove CSS-like content
-			description = regexp.MustCompile(`\.[a-zA-Z-]+\s*\{[^}]*\}`).ReplaceAllString(description, "")
-
-			// Preserve img tags by replacing them with placeholders
-			imgTags := make([]string, 0)
-			description = regexp.MustCompile(`<img[^>]*>`).ReplaceAllStringFunc(description, func(match string) string {
-				imgTags = append(imgTags, match)
-				return fmt.Sprintf("__IMG_TAG_%d__", len(imgTags)-1)
-			})
-
-			// Clean up the description HTML
-			description = strings.ReplaceAll(description, "&nbsp;", " ")
-			description = strings.ReplaceAll(description, "<br>", "\n")
-			description = strings.ReplaceAll(description, "<br/>", "\n")
-			description = strings.ReplaceAll(description, "<br />", "\n")
-			description = strings.ReplaceAll(description, "</p>", "\n")
-			description = strings.ReplaceAll(description, "</div>", "\n")
-			description = strings.ReplaceAll(description, "</li>", "\n")
-			description = strings.ReplaceAll(description, "</ul>", "\n")
-			description = strings.ReplaceAll(description, "</ol>", "\n")
-			description = strings.ReplaceAll(description, "</pre>", "\n")
-			description = strings.ReplaceAll(description, "</code>", "\n")
-
-			// Remove opening tags
-			description = regexp.MustCompile(`<[^>]*>`).ReplaceAllString(description, "")
-
-			// Restore img tags
-			for i, tag := range imgTags {
-				description = strings.ReplaceAll(description, fmt.Sprintf("__IMG_TAG_%d__", i), tag)
-			}
-
-			// Clean up multiple newlines
-			description = regexp.MustCompile(`\n\s*\n`).ReplaceAllString(description, "\n\n")
-			description = strings.TrimSpace(description)
 
 			// Extract code
 			codeHTML, err := doc.Find("div.view-lines").Parent().Html()
